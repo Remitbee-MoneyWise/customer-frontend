@@ -10,6 +10,7 @@ import 'dart:convert';
 import 'package:geocoding/geocoding.dart';
 import 'package:remitbee/constants.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HomeTestScreen extends StatefulWidget {
   const HomeTestScreen({Key? key}) : super(key: key);
@@ -89,11 +90,25 @@ class HomeTestScreenState extends State<HomeTestScreen> {
     super.initState();
     currencyController.text = '1';
     _getCurrentUserLocation();
-    _dataFuture =
-        Future.wait([fetchExchangeRate(selectedCurrency), fetchCurrencies()]);
+    _dataFuture = _loadInitialData();
     currencyController.addListener(handleText);
-    if (favouriteCurrency != '') {
-      fetchExchangeRate(favouriteCurrency);
+    getFavouriteCurrency().then((value) {
+      setState(() {
+        selectedCurrency = value;
+        favouriteCurrency = value;
+        fetchExchangeRate(value);
+      });
+    });
+  }
+
+  Future<void> _loadInitialData() async {
+    try {
+      await Future.wait([
+        fetchExchangeRate(selectedCurrency),
+        fetchCurrencies(),
+      ]);
+    } catch (e) {
+      print('Failed to load initial data: $e');
     }
   }
 
@@ -101,6 +116,11 @@ class HomeTestScreenState extends State<HomeTestScreen> {
     if (currencyController.text.isEmpty) {
       currencyController.text = '1';
     }
+  }
+
+  void setFavouriteCurrency(String currency) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString('favouriteCurrency', currency);
   }
 
   void _updatePlaceName() async {
@@ -197,6 +217,12 @@ class HomeTestScreenState extends State<HomeTestScreen> {
         _updatePlaceName();
       });
     });
+  }
+
+  Future<String> getFavouriteCurrency() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? currency = prefs.getString('favouriteCurrency');
+    return currency ?? 'INR';
   }
 
   double _calculateDistance(LatLng location1, LatLng location2) {
@@ -395,6 +421,7 @@ class HomeTestScreenState extends State<HomeTestScreen> {
                 onTap: () {
                   setState(() {
                     favouriteCurrency = newSelectedCurrency;
+                    setFavouriteCurrency(favouriteCurrency);
                   });
                 },
                 child: favouriteCurrency == newSelectedCurrency
@@ -741,8 +768,7 @@ class HomeTestScreenState extends State<HomeTestScreen> {
                                 ),
                               ),
                               Container(
-                                padding:
-                                    const EdgeInsets.only(top: 20),
+                                padding: const EdgeInsets.only(top: 20),
                                 child: Column(
                                   children: [
                                     Text(
@@ -828,7 +854,8 @@ class HomeTestScreenState extends State<HomeTestScreen> {
                                         );
                                       },
                                       child: Container(
-                                        margin: const EdgeInsets.symmetric(horizontal: 10),
+                                        margin: const EdgeInsets.symmetric(
+                                            horizontal: 10),
                                         width: double.infinity,
                                         height: 25,
                                         decoration: BoxDecoration(
